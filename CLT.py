@@ -407,7 +407,6 @@ class Laminate:
         a = (f11 * s1**2) + (f22 * s2**2) + (f66 * T12**2) - (f11 * s1 * s2)
         b = (f1 * s1) + (f2 * s2)
         c = -1
-        # print(f'A {a} B {b} \n')
 
         fos = (1/(2*a)) * (np.sqrt(b**2 + (4 * a)) - b)
         tsai_wu = (f1*s1) + (f2*s2) + (f11*s1**2) + (f22*s2**2) + (f66*T12**2) + (2*f12*s1*s2)
