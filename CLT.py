@@ -1,6 +1,6 @@
 import numpy as np
-import matplotlib as mpl
 import matplotlib.pyplot as plt
+from math import cos, sin, radians
 
 # # CF inches
 # # Material parameters
@@ -162,21 +162,21 @@ class Ply(Material):
 
         self.a_vect = np.array([[self.ax], [self.ay], [self.axy]])
 
+
 class Laminate:
-    def __init__(self, layup, thickness, delta_t, *loads):
+    def __init__(self, layup, thickness, delta_t, load):
         self.layup = layup
-        self.thickness = thickness
+        self.ply_thickness = thickness
         self.n_plies = len(self.layup)
         self.unit_correction = 1
         self.abd_matrix = None
         self.abd_inv_matrix = None
-        self.load = loads[0]
+        self.load = load
         self.midplane_strain_vector = None
-        self.z_zero = -(self.thickness * self.n_plies) / 2
-        self.laminate_height = self.n_plies * self.thickness
+        self.z_zero = -(self.ply_thickness * self.n_plies) / 2
+        self.laminate_thickness = self.n_plies * self.ply_thickness
         self.delta_t = delta_t
 
-        # Sets abd and midplane strain for absject
         # Extensional stiffness matrix relating the resultant in-plane forces to the in-plane strains.
         A = np.zeros((3, 3), dtype=np.float64)
         # Coupling stiffness matrix coupling the force and moment terms to the midplane strains and midplane curvatures.
@@ -184,13 +184,13 @@ class Laminate:
         # Bending stiffness matrix relating the resultant bending moments to the plate curvatures.
         D = np.zeros((3, 3), dtype=np.float64)
 
-        h0 = -self.thickness * self.n_plies / 2
+        h0 = -self.ply_thickness * self.n_plies / 2
 
         for ply_num, angle in enumerate(self.layup, start=1):
             q_bar = Ply(angle=angle).q_bar
 
-            hk = h0 + (self.thickness * ply_num)
-            h1 = h0 + (self.thickness * (ply_num - 1))
+            hk = h0 + (self.ply_thickness * ply_num)
+            h1 = h0 + (self.ply_thickness * (ply_num - 1))
 
             A += q_bar * (hk - h1)
             B += 0.5 * q_bar * ((hk ** 2) - (h1 ** 2))
@@ -201,15 +201,15 @@ class Laminate:
         self.midplane_strain_curvature_vector = np.linalg.multi_dot([self.abd_inv_matrix, self.load])
 
         # Engineering Constants
-        self.Ex = 1 / (self.laminate_height * self.abd_inv_matrix[0][0])
-        self.Ey = 1 / (self.laminate_height * self.abd_inv_matrix[1][1])
-        self.Gxy = 1 / (self.laminate_height * self.abd_inv_matrix[2][2])
+        self.Ex = 1 / (self.laminate_thickness * self.abd_inv_matrix[0][0])
+        self.Ey = 1 / (self.laminate_thickness * self.abd_inv_matrix[1][1])
+        self.Gxy = 1 / (self.laminate_thickness * self.abd_inv_matrix[2][2])
         self.vxy = -self.abd_inv_matrix[0][1] / self.abd_inv_matrix[0][0]
         self.vyx = -self.abd_inv_matrix[0][1] / self.abd_inv_matrix[1][1]
 
-        self.Exf = 12 / ((self.laminate_height ** 3) * self.abd_inv_matrix[3][3])
-        self.Eyf = 12 / ((self.laminate_height ** 3) * self.abd_inv_matrix[4][4])
-        self.Gxyf = 12 / ((self.laminate_height ** 3) * self.abd_inv_matrix[5][5])
+        self.Exf = 12 / ((self.laminate_thickness ** 3) * self.abd_inv_matrix[3][3])
+        self.Eyf = 12 / ((self.laminate_thickness ** 3) * self.abd_inv_matrix[4][4])
+        self.Gxyf = 12 / ((self.laminate_thickness ** 3) * self.abd_inv_matrix[5][5])
         self.vxyf = -self.abd_inv_matrix[3][4] / self.abd_inv_matrix[3][3]
         self.vyxf = -self.abd_inv_matrix[3][4] / self.abd_inv_matrix[4][4]
 
@@ -220,13 +220,13 @@ class Laminate:
 
     # Returns z distance from midplane for given ply
     def get_z_distance(self, ply_num, side):
-        z_distance = (self.z_zero + (ply_num * self.thickness)) + (self.thickness / 2)
+        z_distance = (self.z_zero + (ply_num * self.ply_thickness)) + (self.ply_thickness / 2)
 
         # Corrects z distance based on desired ply side
         if side == 'top':
-            z_distance = z_distance - (self.thickness / 2)
+            z_distance = z_distance - (self.ply_thickness / 2)
         elif side == 'bottom':
-            z_distance = z_distance + (self.thickness / 2)
+            z_distance = z_distance + (self.ply_thickness / 2)
         else:
             pass
         return z_distance
@@ -296,9 +296,9 @@ class Laminate:
 
             try:
                 # Load taken in glabal direction by each ply
-                load_Nx = ((average_stress[:3][0]) / self.n_plies) * self.thickness
-                load_Ny = ((average_stress[:3][1]) / self.n_plies) * self.thickness
-                load_Nxy = ((average_stress[:3][2]) / self.n_plies) * self.thickness
+                load_Nx = ((average_stress[:3][0]) / self.n_plies) * self.ply_thickness
+                load_Ny = ((average_stress[:3][1]) / self.n_plies) * self.ply_thickness
+                load_Nxy = ((average_stress[:3][2]) / self.n_plies) * self.ply_thickness
 
                 # Percent of load in direction taken by each ply
                 pct_Nx = (load_Nx / self.load[0]) * 100
@@ -321,18 +321,44 @@ class Laminate:
 
             average_stress = 0
 
-    # Returns global midplane thermal strain vector, with print options
+    # Returns the pct of moment carried by each layer
+    def moment_by_ply(self, print_enabled=False):
+        h0 = self.z_zero + self.ply_thickness
+        Mx = 0
+        My = 0
+        Mxy = 0
+
+        for ply_num, angle in enumerate(self.layup):
+            hk = h0 + (self.ply_thickness * ply_num)
+            h1 = h0 + (self.ply_thickness * (ply_num - 1))
+            Mx = Mx + (self.global_stress_strain(angle, ply_num, 'middle')[0] * 0.5 * (hk**2 - h1**2))
+            My = My + (self.global_stress_strain(angle, ply_num, 'middle')[1] * 0.5 * (hk**2 - h1**2))
+            Mxy = Mxy + (self.global_stress_strain(angle, ply_num, 'middle')[2] * 0.5 * (hk**2 - h1**2))
+
+            try:
+                pct_Mx = (Mx / self.load[3]) * 100
+                pct_My = (My / self.load[4]) * 100
+                pct_Mxy = (Mxy / self.load[5]) * 100
+
+            except RuntimeWarning as e:
+                pass
+
+            if print_enabled:
+                print(f'Ply: {ply_num}, Mx: {Mx}, My: {My}, Mxy: {Mxy}')
+                print(f'Ply: {ply_num}, %Mx: {pct_Mx}, %My: {pct_My}, %Mxy: {pct_Mxy} \n')
+
+            # Returns global midplane thermal strain vector, with print options
     def thermal_strain(self, print_enabled=False):
         # Starting z value of laminate
-        h0 = -(self.thickness * self.n_plies) / 2
+        h0 = -(self.ply_thickness * self.n_plies) / 2
 
         global_thermal_force_vector = 0
         global_thermal_moment_vector = 0
 
         for ply_num, angle in enumerate(self.layup, start=1):
             # Z values for iteration through laminate
-            hk = h0 + (self.thickness * ply_num)
-            h1 = h0 + (self.thickness * (ply_num - 1))
+            hk = h0 + (self.ply_thickness * ply_num)
+            h1 = h0 + (self.ply_thickness * (ply_num - 1))
 
             q_bar = Ply(angle).q_bar
             a_vect = Ply(angle).a_vect
@@ -389,10 +415,11 @@ class Laminate:
             print(f'Global thermal stress ply: {ply_num}, '
                   f'angle: {angle}, side: {side} \n {global_point_thermal_stress} \n')
 
-    def tsai_wu(self, angle, ply_num):
-        f1 = (1/Material().s1T) + (1/Material().s1C)
+    # Returns tsai_wu criterion and factor of safety for a given ply
+    def tsai_wu(self, angle, ply_num, print_enabled=False):
+        f1 = (1 / Material().s1T) + (1 / Material().s1C)
         f11 = -1 / (Material().s1T * Material().s1C)
-        f2 = (1/Material().s2T) + (1/Material().s2C)
+        f2 = (1 / Material().s2T) + (1 / Material().s2C)
         f22 = -1 / (Material().s2T * Material().s2C)
         f12 = (-0.5) * (f11 * f22) ** 0.5
         S6 = Material().t12
@@ -404,27 +431,70 @@ class Laminate:
         s2 = local_stress_strain[1]
         T12 = local_stress_strain[2]
 
-        a = (f11 * s1**2) + (f22 * s2**2) + (f66 * T12**2) - (f11 * s1 * s2)
+        a = (f11 * s1 ** 2) + (f22 * s2 ** 2) + (f66 * T12 ** 2) - (f11 * s1 * s2)
         b = (f1 * s1) + (f2 * s2)
         c = -1
 
-        fos = (1/(2*a)) * (np.sqrt(b**2 + (4 * a)) - b)
-        tsai_wu = (f1*s1) + (f2*s2) + (f11*s1**2) + (f22*s2**2) + (f66*T12**2) + (2*f12*s1*s2)
+        fos = (1 / (2 * a)) * (np.sqrt(b ** 2 + (4 * a)) - b)
+        tsai_wu = (f1 * s1) + (f2 * s2) + (f11 * s1 ** 2) + (f22 * s2 ** 2) + (f66 * T12 ** 2) + (2 * f12 * s1 * s2)
+
+        if print_enabled:
+            print(f'Factor of safety: {fos}, Ply: {ply_num}, Angle: {angle}')
+            print(f'Tsai-Wu criterion: {tsai_wu}, Ply: {ply_num}, Angle: {angle} \n')
 
         return tsai_wu, fos
 
-    def plot_tsai_wu(self):
-        fig, ax = plt.subplots()
+    # Returns tsai-wu criterieon by ply
+    def ply_tsai_wu(self, print_enabled=False):
         for ply_num, angle in enumerate(self.layup):
             tsai_wu, fos = self.tsai_wu(angle, ply_num)
-            print(f'FOS: {fos}, Ply: {ply_num}, Angle: {angle}, Tsai_wu: {tsai_wu}\n')
-        #     for theta in range(0, 360):
-        #         theta = np.deg2rad(theta)
-        #         x = fos * np.cos(theta)
-        #         y = fos * np.sin(theta)
-        #         ax.plot(x, y, 'go')
-        #
-        # plt.show()
+
+            if print_enabled:
+                print(f'Factor of safety: {fos}, Ply: {ply_num}, Angle: {angle}')
+                print(f'Tsai-Wu criterion: {tsai_wu}, Ply: {ply_num}, Angle: {angle} \n')
+
+    # Plots s1 vs s2 curves
+    def plot_tsai_wu(self):
+        fig, ax = plt.subplots(figsize=(8, 4))
+        s1, s2 = [], []
+
+        for ply_num, angle in enumerate(self.layup):
+            # tsai_wu, fos, s1, s2 = self.tsai_wu(angle, ply_num)
+            # print(f'FOS: {fos}, Ply: {ply_num}, Angle: {angle}, Tsai_wu: {tsai_wu} s1: {s1}, s2: {s2} \n')
+
+            fe, fos = self.tsai_wu(angle, ply_num)
+            for a in np.linspace(0, 360, 3600):
+                s1i = cos(radians(a))
+                s2i = sin(radians(a))
+                s1.append(s1i / fe)
+                s2.append(s2i / fe)
+
+            ax.plot(s1, s2, 'o', color='blue', label=ply_num, linewidth=1)
+        ax.plot((0,), (0,), '+', color='black', markersize=10)
+        ax.legend(loc='best')
+
+        ax.set_xlabel(r'$\sigma_1$', fontsize=14)
+        ax.set_ylabel(r'$\sigma_2$', fontsize=14)
+        ax.grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+    # Determines the overall strength of the laminate
+    def get_strength(self, t_load, load_to_change):
+        self.load = t_load
+        weakest_ply = 0
+        weakest_strength = 0
+
+        # Finds the weakest ply in given layup
+        for ply_num, angle in enumerate(self.layup):
+            tsai_wu, _ = self.tsai_wu(angle, ply_num)
+            if tsai_wu > weakest_strength:
+                weakest_ply = ply_num
+                weakest_strength = tsai_wu
+            print(weakest_strength, weakest_ply)
+
+
 
 """
 ########################################################################################################################
@@ -432,7 +502,7 @@ Laminate Functions
 ########################################################################################################################
 """
 
-test_load = np.array([[0], [0], [0], [10000], [0], [0]])
+test_load = np.array([[0], [1000000], [0], [0], [0], [0]], dtype=np.float64)
 test_delta_t = 0
 
 test_layup = [0, 45, -45, -45, 45, 0]
@@ -445,9 +515,34 @@ test_thickness = 0.0016667
 # Laminate(test_layup, test_thickness, test_load).load_by_ply(print_enabled=False)
 # Laminate(test_layup, test_thickness, test_delta_t, test_load).thermal_strain(print_enabled=True)
 # Laminate(test_layup, test_thickness, test_delta_t, test_load).thermal_stress(1, 'bottom')
-Laminate(test_layup, test_thickness, test_delta_t, test_load).plot_tsai_wu()
+# Laminate(test_layup, test_thickness, test_delta_t, test_load).ply_tsai_wu(print_enabled=True)
 # Laminate(test_layup, test_thickness, test_delta_t, test_load).local_stress_strain(30, 0, 'middle', print_enabled=True)
+# Laminate(test_layup, test_thickness, test_delta_t, test_load).get_strength(test_load)
+# Laminate(test_layup, test_thickness, test_delta_t, test_load).moment_by_ply()
 
+
+def get_strength(layup, thickness, delta_t, load, load_to_change):
+    weakest_strength = 0
+    weakest_ply = 0
+    incrementing_value = load.max() / 100
+    while weakest_strength <= 1:
+        test_laminate = Laminate(layup, thickness, delta_t, load)
+
+        # Finds weakest ply and its corresponding tsai_wu criterion
+        for ply_num, angle in enumerate(test_laminate.layup):
+            tsai_wu, _ = test_laminate.tsai_wu(angle, ply_num)
+
+            if tsai_wu > weakest_strength:
+                weakest_ply = ply_num
+                weakest_strength = tsai_wu
+
+            print(f'Ply: {ply_num} Tsai-Wu: {tsai_wu}')
+
+        load[load_to_change] += incrementing_value
+
+        print(load, '\n')
+
+get_strength(test_layup, test_thickness, test_delta_t, test_load, 0)
 """
 ########################################################################################################################
 """
