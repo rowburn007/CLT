@@ -736,7 +736,6 @@ def progressive_failure(laminate, load_increase, *loads_to_change):
 
     print(laminate.load)
 
-progressive_failure(test_laminate, 100000, [0, 1])
 
 """
 ########################################################################################################################
@@ -744,6 +743,8 @@ CALLS
 ########################################################################################################################
 """
 
+
+progressive_failure(test_laminate, 100000, [0, 1])
 # new_lam = update_laminate(test_laminate, [0])
 # print(new_lam.laminate[0].E2)
 # new_lam = update_laminate(test_laminate, [0])
