@@ -12,28 +12,28 @@ PLY
 
 class Ply:
     # TODO
-    def __init__(self, angle, ply_num, material_parameters):
+    def __init__(self, angle, ply_num, ply_material_parameters):
         self.ply_num = ply_num
         self.angle = angle
 
         # Material parameters
-        self.Vf = material_parameters[0]
-        self.E1 = material_parameters[1]
-        self.E2 = material_parameters[2]
-        self.v12 = material_parameters[3]
-        self.G12 = material_parameters[4]
+        self.Vf = ply_material_parameters[0]
+        self.E1 = ply_material_parameters[1]
+        self.E2 = ply_material_parameters[2]
+        self.v12 = ply_material_parameters[3]
+        self.G12 = ply_material_parameters[4]
 
         # Strength properties
-        self.s1T = material_parameters[5]
-        self.s1C = material_parameters[6]
-        self.s2T = material_parameters[7]
-        self.s2C = material_parameters[8]
-        self.t12 = material_parameters[9]
+        self.s1T = ply_material_parameters[5]
+        self.s1C = ply_material_parameters[6]
+        self.s2T = ply_material_parameters[7]
+        self.s2C = ply_material_parameters[8]
+        self.t12 = ply_material_parameters[9]
 
         # Thermal coefficients
-        self.a1 = material_parameters[10]
-        self.a2 = material_parameters[11]
-        self.a12 = material_parameters[12]
+        self.a1 = ply_material_parameters[10]
+        self.a2 = ply_material_parameters[11]
+        self.a12 = ply_material_parameters[12]
 
         # Transformation
         theta = np.deg2rad(self.angle)  # Degree to radian
@@ -91,7 +91,7 @@ LAMINATE
 
 
 class Laminate:
-    def __init__(self, layup, material_parameters, thickness, delta_t, load):
+    def __init__(self, layup, laminate_material_parameters, thickness, delta_t, load):
         self.layup = layup
         self.ply_thickness = thickness
         self.n_plies = len(self.layup)
@@ -103,8 +103,9 @@ class Laminate:
         self.z_zero = -(self.ply_thickness * self.n_plies) / 2
         self.laminate_thickness = self.n_plies * self.ply_thickness
         self.delta_t = delta_t
-        self.laminate = self.plies(layup, material_parameters)
-        self.material_parameters = material_parameters
+        self.laminate = self.plies(layup, laminate_material_parameters)
+        self.laminate_material_parameters = laminate_material_parameters
+        self.ply_material_parameters = None
 
         # Extensional stiffness matrix relating the resultant in-plane forces to the in-plane strains.
         A = np.zeros((3, 3), dtype=np.float64)
@@ -115,21 +116,48 @@ class Laminate:
 
         h0 = -self.ply_thickness * self.n_plies / 2
 
-        for ply_num, angle in enumerate(self.layup, start=1):
-            ply = Ply(angle, ply_num, material_parameters)
-            q_bar = ply.q_bar
+        # print(self.load)
+        # TODO: Most recent work, check ply vs laminate material properties
+        try:
+            self.ply_material_parameters = self.get_ply_material_params()
+            print(self.ply_material_parameters)
+        except Exception:
+            pass
 
-            hk = h0 + (self.ply_thickness * ply_num)
-            h1 = h0 + (self.ply_thickness * (ply_num - 1))
+        init_ply_material_parameters = self.laminate_material_parameters
 
-            A += q_bar * (hk - h1)
-            B += 0.5 * q_bar * ((hk ** 2) - (h1 ** 2))
-            D += (1 / 3) * q_bar * ((hk ** 3) - (h1 ** 3))
+        if self.ply_material_parameters is None:
+            print('NONE NONE NONE')
+            ply_material_parameters = init_ply_material_parameters
+
+            for ply_num, angle in enumerate(self.layup, start=1):
+                ply = Ply(angle, ply_num, ply_material_parameters)
+                q_bar = ply.q_bar
+
+                hk = h0 + (self.ply_thickness * ply_num)
+                h1 = h0 + (self.ply_thickness * (ply_num - 1))
+
+                A += q_bar * (hk - h1)
+                B += 0.5 * q_bar * ((hk ** 2) - (h1 ** 2))
+                D += (1 / 3) * q_bar * ((hk ** 3) - (h1 ** 3))
+
+        else:
+            for ply_num, angle in enumerate(self.layup, start=1):
+                ply = Ply(angle, ply_num, self.ply_material_parameters[ply_num - 1])
+                q_bar = ply.q_bar
+
+                hk = h0 + (self.ply_thickness * ply_num)
+                h1 = h0 + (self.ply_thickness * (ply_num - 1))
+
+                A += q_bar * (hk - h1)
+                B += 0.5 * q_bar * ((hk ** 2) - (h1 ** 2))
+                D += (1 / 3) * q_bar * ((hk ** 3) - (h1 ** 3))
 
         # TODO: Changed to round to zero
         self.abd_matrix = np.rint(np.block([[A, B], [B, D]])) * self.unit_correction
         self.abd_inv_matrix = np.linalg.inv(self.abd_matrix)
         self.midplane_strain_curvature_vector = np.linalg.multi_dot([self.abd_inv_matrix, self.load])
+
 
         # Engineering Constants
         self.Ex = 1 / (self.laminate_thickness * self.abd_inv_matrix[0][0])
@@ -179,7 +207,7 @@ class Laminate:
 
     # Returns local stress and strain vector at desired ply
     def global_stress_strain(self, angle, ply_num, side, print_enabled=False):
-        ply = Ply(angle, ply_num, self.material_parameters)
+        ply = Ply(angle, ply_num, self.laminate_material_parameters)
 
         midplane_strain_vector = np.array(self.midplane_strain_curvature_vector[:3], dtype=np.float64)
         midplane_curvature_vector = np.array(self.midplane_strain_curvature_vector[3:], dtype=np.float64)
@@ -199,7 +227,7 @@ class Laminate:
 
     # Finds local stress and strain at point in ply
     def local_stress_strain(self, angle, ply_num, side, print_enabled=False):
-        ply = Ply(angle, ply_num, self.material_parameters)
+        ply = Ply(angle, ply_num, self.laminate_material_parameters)
 
         z_distance = self.get_z_distance(ply_num, side)
 
@@ -306,7 +334,7 @@ class Laminate:
         global_thermal_moment_vector = 0
 
         for ply_num, angle in enumerate(self.layup, start=1):
-            ply = Ply(angle, ply_num, self.material_parameters)
+            ply = Ply(angle, ply_num, self.laminate_material_parameters)
 
             # Z values for iteration through laminate
             hk = h0 + (self.ply_thickness * ply_num)
@@ -336,7 +364,7 @@ class Laminate:
     # Finds the global and local thermal stress at specified side of laminate
     def thermal_stress(self, ply_num, side, print_enabled=False):
         angle = self.layup[ply_num]
-        ply = Ply(angle, ply_num, self.material_parameters)
+        ply = Ply(angle, ply_num, self.laminate_material_parameters)
 
         global_midplane_thermal_deformation_vector = self.thermal_strain()
 
@@ -369,6 +397,102 @@ class Laminate:
                   f'angle: {angle}, side: {side} \n {local_point_thermal_stress} \n')
             print(f'Global thermal stress ply: {ply_num}, '
                   f'angle: {angle}, side: {side} \n {global_point_thermal_stress} \n')
+
+    # Returns tsai_wu criterion and factor of safety for a given ply
+    def tsai_wu(self, ply_num, angle, print_enabled=False):
+        ply = Ply(angle, ply_num, self.laminate_material_parameters)
+
+        f1 = (1 / ply.s1T) + (1 / ply.s1C)
+        f11 = -1 / (ply.s1T * ply.s1C)
+        f2 = (1 / ply.s2T) + (1 / ply.s2C)
+        f22 = -1 / (ply.s2T * ply.s2C)
+        f12 = -0.5 * (f11 * f22) ** 0.5
+        S6 = ply.t12
+        f66 = 1 / (S6 ** 2)
+        # print(f1, f2, f11, f22, f66, f12)
+
+        local_stress_strain = self.local_stress_strain(angle, ply_num, 'middle', print_enabled=False)
+        # print(local_stress_strain)
+
+        s1 = local_stress_strain[0]
+        s2 = local_stress_strain[1]
+        T12 = local_stress_strain[2]
+
+        a = (f11 * s1 ** 2) + (f22 * s2 ** 2) + (f66 * T12 ** 2) - (f11 * s1 * s2)
+        b = (f1 * s1) + (f2 * s2)
+        c = -1
+
+        try:
+            fos = (1 / (2 * a)) * (np.sqrt(b ** 2 + (4 * a)) - b)
+            tsai_wu_criterion = (f1 * s1) + (f2 * s2) + (f11 * s1 ** 2) + (f22 * s2 ** 2) + (f66 * T12 ** 2) + (
+                    2 * f12 * s1 * s2)
+        except Exception as e:
+            pass
+
+        if print_enabled:
+            print(f'Factor of safety: {fos}, Ply: {ply_num}, Angle: {angle}')
+            print(f'Tsai-Wu criterion: {tsai_wu_criterion}, Ply: {ply_num}, Angle: {angle} \n')
+
+        return tsai_wu_criterion, fos
+
+    # The purpose of this funciton is to test the iteration of updates within a laminate object
+    def update_laminate(self, failed_plies):
+        for ply in failed_plies:
+            ply_objects = self.laminate
+            ply_objects[ply].E2 = ply_objects[ply].E2 * 0.75
+            # print(laminate.laminate[0].E2)
+            # print(ply_objects[ply].E2)
+
+    # Determines plies of failure
+    def check_ply_failure(self, print_enabled=False):
+        failed_plies = []
+        # print(self.load)
+        for ply_num, angle in enumerate(self.layup):
+            tsai_wu_criterion, factor_of_safety = self.tsai_wu(ply_num, angle, print_enabled)
+            if tsai_wu_criterion >= 1:
+                failed_plies.append(ply_num)
+        return failed_plies
+
+    # Gets ply material params
+    def get_ply_material_params(self):
+        failed_plies = self.check_ply_failure()
+        self.update_laminate(failed_plies)
+        self.ply_material_parameters = []
+        for ply in self.laminate:
+            ply_material_properties = [ply.Vf, ply.E1, ply.E2, ply.v12, ply.G12, ply.s1T, ply.s1C,
+                                       ply.s2T, ply.s2C, ply.t12, ply.a1, ply.a2, ply.a12]
+            self.ply_material_parameters.append(ply_material_properties)
+        return self.ply_material_parameters
+
+    # Checks for fiber failure in laminate
+    def check_fiber_failure(self):
+        # Failure Mode check
+        for ply_num, angle in enumerate(self.layup):
+            ply = self.laminate[ply_num]
+            s1 = self.local_stress_strain(angle, ply_num, 'middle')[0]
+            s2 = self.local_stress_strain(angle, ply_num, 'middle')[1]
+            t6 = ply.t12
+            F6 = t6
+
+            if s1 > 0:
+                F1 = ply.s1T
+            else:
+                F1 = ply.s1C
+
+            if s2 > 0:
+                F2 = ply.s2T
+            else:
+                F2 = ply.s2C
+
+            fiber_failure = ((s2 / F2) ** 2) + ((t6 / F6) ** 2) < ((s1 / F1) ** 2)
+
+            print(f' {((s2 / F2) ** 2) + ((t6 / F6) ** 2)} < {((s1 / F1) ** 2)}')
+
+            if fiber_failure:
+                break
+
+        return fiber_failure
+
 
     # # Returns tsai-wu criterion by ply
     # def ply_tsai_wu(self, print_enabled=False):
@@ -490,54 +614,55 @@ FUNCTIONS
 """
 
 
-# Returns tsai_wu criterion and factor of safety for a given ply
-def tsai_wu(laminate, ply_num, angle, print_enabled=False):
-    ply = Ply(angle, ply_num, laminate.material_parameters)
-
-    f1 = (1 / ply.s1T) + (1 / ply.s1C)
-    f11 = -1 / (ply.s1T * ply.s1C)
-    f2 = (1 / ply.s2T) + (1 / ply.s2C)
-    f22 = -1 / (ply.s2T * ply.s2C)
-    f12 = -0.5 * (f11 * f22) ** 0.5
-    S6 = ply.t12
-    f66 = 1 / (S6 ** 2)
-    # print(f1, f2, f11, f22, f66, f12)
-
-    # TODO: Load is not changing
-    laminate.load = laminate.load
-    local_stress_strain = laminate.local_stress_strain(angle, ply_num, 'middle', print_enabled=False)
-
-    s1 = local_stress_strain[0]
-    s2 = local_stress_strain[1]
-    T12 = local_stress_strain[2]
-
-    a = (f11 * s1 ** 2) + (f22 * s2 ** 2) + (f66 * T12 ** 2) - (f11 * s1 * s2)
-    b = (f1 * s1) + (f2 * s2)
-    c = -1
-
-    try:
-        fos = (1 / (2 * a)) * (np.sqrt(b ** 2 + (4 * a)) - b)
-        tsai_wu_criterion = (f1 * s1) + (f2 * s2) + (f11 * s1 ** 2) + (f22 * s2 ** 2) + (f66 * T12 ** 2) + (
-                2 * f12 * s1 * s2)
-    except Exception as e:
-        pass
-
-    if print_enabled:
-        print(f'Factor of safety: {fos}, Ply: {ply_num}, Angle: {angle}')
-        print(f'Tsai-Wu criterion: {tsai_wu_criterion}, Ply: {ply_num}, Angle: {angle} \n')
-
-    return tsai_wu_criterion, fos
-
-
-# Determines plies of failure
-def check_ply_failure(laminate, print_enabled=False):
-    failed_plies = []
-    for ply_num, angle in enumerate(laminate.layup):
-        tsai_wu_criterion, factor_of_safety = tsai_wu(laminate, ply_num, angle, print_enabled)
-        if tsai_wu_criterion >= 1:
-            failed_plies.append(ply_num)
-
-    return failed_plies
+# # Returns tsai_wu criterion and factor of safety for a given ply
+# def tsai_wu(laminate, ply_num, angle, print_enabled=False):
+#     ply = Ply(angle, ply_num, laminate.material_parameters)
+#
+#     f1 = (1 / ply.s1T) + (1 / ply.s1C)
+#     f11 = -1 / (ply.s1T * ply.s1C)
+#     f2 = (1 / ply.s2T) + (1 / ply.s2C)
+#     f22 = -1 / (ply.s2T * ply.s2C)
+#     f12 = -0.5 * (f11 * f22) ** 0.5
+#     S6 = ply.t12
+#     f66 = 1 / (S6 ** 2)
+#     # print(f1, f2, f11, f22, f66, f12)
+#
+#     # TODO: Load is not changing
+#     laminate.load = laminate.load
+#     local_stress_strain = laminate.local_stress_strain(angle, ply_num, 'middle', print_enabled=False)
+#
+#     s1 = local_stress_strain[0]
+#     s2 = local_stress_strain[1]
+#     T12 = local_stress_strain[2]
+#
+#     a = (f11 * s1 ** 2) + (f22 * s2 ** 2) + (f66 * T12 ** 2) - (f11 * s1 * s2)
+#     b = (f1 * s1) + (f2 * s2)
+#     c = -1
+#
+#     try:
+#         fos = (1 / (2 * a)) * (np.sqrt(b ** 2 + (4 * a)) - b)
+#         tsai_wu_criterion = (f1 * s1) + (f2 * s2) + (f11 * s1 ** 2) + (f22 * s2 ** 2) + (f66 * T12 ** 2) + (
+#                 2 * f12 * s1 * s2)
+#     except Exception as e:
+#         pass
+#
+#     if print_enabled:
+#         print(f'Factor of safety: {fos}, Ply: {ply_num}, Angle: {angle}')
+#         print(f'Tsai-Wu criterion: {tsai_wu_criterion}, Ply: {ply_num}, Angle: {angle} \n')
+#
+#     return tsai_wu_criterion, fos
+#
+#
+# # Determines plies of failure
+# def check_ply_failure(laminate, print_enabled=False):
+#     failed_plies = []
+#     print(laminate.load)
+#     for ply_num, angle in enumerate(laminate.layup):
+#         tsai_wu_criterion, factor_of_safety = tsai_wu(laminate, ply_num, angle, print_enabled)
+#         if tsai_wu_criterion >= 1:
+#             failed_plies.append(ply_num)
+#
+#     return failed_plies
 
 
 # Increases load on laminate
@@ -545,11 +670,11 @@ def increase_load(laminate, load_increase, *loads_to_change):
     for load in loads_to_change:
         applied_load = laminate.load[load]
         laminate.load[load] = applied_load + load_increase
+        # print(laminate.load)
 
-    laminate.__init__(laminate.layup, laminate.material_parameters, laminate.ply_thickness, laminate.delta_t,
-                      laminate.load)
-
-    return laminate.load
+    return laminate
+    # laminate.__init__(laminate.layup, laminate.material_parameters, laminate.ply_thickness, laminate.delta_t,
+    #                   laminate.load)
 
 
 # Checks for matrix failure
@@ -612,15 +737,29 @@ def check_fiber_failure(laminate):
     return fiber_failure
 
 
-# TODO: Fix updating of ply object material params
-# Takes in a laminate and a list of failed plies and updates E2
-def update_E2(laminate, failed_plies):
-    for ply_num in failed_plies:
-        ply_object = laminate.laminate[ply_num]
-        old_ply_E2 = ply_object.E2
-        ply_object.E2 = old_ply_E2 * 0.75
-        # print(ply_object.E2)
-
+# # TODO: Fix updating of ply object material params
+# # Takes in a laminate and a list of failed plies and updates E2
+# def update_E2(laminate, failed_plies):
+#     for ply_num in failed_plies:
+#         ply_object = laminate.laminate[ply_num]
+#         print(ply_object.E2)
+#         old_ply_E2 = ply_object.E2
+#         new_ply_E2 = old_ply_E2 * 0.75
+#         ply_object.E2 = new_ply_E2
+#         print(ply_object.E2)
+#     return laminate
+#
+#
+# # The purpose of this funciton is to test the iteration of updates within a laminate object
+# def update_laminate(laminate, failed_plies):
+#     for ply in failed_plies:
+#         ply_objects = laminate.laminate
+#         ply_objects[ply].E2 = ply_objects[ply].E2 * 0.75
+#         # print(laminate.laminate[0].E2)
+#         # print(ply_objects[ply].E2)
+#
+#     return laminate
+#
 
 # Applies progressive failure theory to laminate
 def progressive_failure(laminate, load_increase, *loads_to_change):
@@ -629,17 +768,21 @@ def progressive_failure(laminate, load_increase, *loads_to_change):
     while not fiber_failure:
         failed_plies = []
         while len(failed_plies) == 0:
-            failed_plies = check_ply_failure(laminate)
-            increase_load(laminate, load_increase, loads_to_change)
+            print('Trying...')
+            failed_plies = laminate.check_ply_failure(print_enabled=False)
+            laminate = increase_load(laminate, load_increase, loads_to_change)
+            laminate.__init__(laminate.layup, laminate.laminate_material_parameters, laminate.ply_thickness,
+                              laminate.delta_t, laminate.load)
+            print(laminate.load)
 
             iterations += 1
-        update_E2(laminate, failed_plies)
-        print(laminate.laminate[2].E2)
-        fiber_failure = check_fiber_failure(laminate)
+        laminate.update_laminate(failed_plies)
+        fiber_failure = laminate.check_fiber_failure()
 
-    print(laminate.load)
-    print(f'Iterations: {iterations}')
+    # print(laminate.load)
+    # print(f'Iterations: {iterations}')
 
+progressive_failure(test_laminate, 100000, [0, 1])
 
 """
 ########################################################################################################################
@@ -647,7 +790,11 @@ CALLS
 ########################################################################################################################
 """
 
-updated = progressive_failure(test_laminate, 1000, [0, 1])
+# new_lam = update_laminate(test_laminate, [0])
+# print(new_lam.laminate[0].E2)
+# new_lam = update_laminate(test_laminate, [0])
+# print(new_lam.laminate[0].E2)
+# updated = progressive_failure(test_laminate, 100000, [0, 1])
 # increase_load(test_laminate, 423000, [1])
 # check_ply_failure(test_laminate, print_enabled=True)
 # print(test_laminate.abd_matrix)
