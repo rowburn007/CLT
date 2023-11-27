@@ -91,7 +91,7 @@ LAMINATE
 
 
 class Laminate:
-    def __init__(self, layup, laminate_material_parameters, thickness, delta_t, load):
+    def __init__(self, layup, laminate_material_parameters, ply_material_parameters, thickness, delta_t, load):
         self.layup = layup
         self.ply_thickness = thickness
         self.n_plies = len(self.layup)
@@ -105,7 +105,7 @@ class Laminate:
         self.delta_t = delta_t
         self.laminate = self.plies(layup, laminate_material_parameters)
         self.laminate_material_parameters = laminate_material_parameters
-        self.ply_material_parameters = None
+        self.ply_material_parameters = ply_material_parameters
 
         # Extensional stiffness matrix relating the resultant in-plane forces to the in-plane strains.
         A = np.zeros((3, 3), dtype=np.float64)
@@ -116,42 +116,16 @@ class Laminate:
 
         h0 = -self.ply_thickness * self.n_plies / 2
 
-        # print(self.load)
-        # TODO: Most recent work, check ply vs laminate material properties
-        try:
-            self.ply_material_parameters = self.get_ply_material_params()
-            print(self.ply_material_parameters)
-        except Exception:
-            pass
+        for ply_num, angle in enumerate(self.layup, start=1):
+            ply = Ply(angle, ply_num, self.ply_material_parameters[ply_num - 1])
+            q_bar = ply.q_bar
 
-        init_ply_material_parameters = self.laminate_material_parameters
+            hk = h0 + (self.ply_thickness * ply_num)
+            h1 = h0 + (self.ply_thickness * (ply_num - 1))
 
-        if self.ply_material_parameters is None:
-            print('NONE NONE NONE')
-            ply_material_parameters = init_ply_material_parameters
-
-            for ply_num, angle in enumerate(self.layup, start=1):
-                ply = Ply(angle, ply_num, ply_material_parameters)
-                q_bar = ply.q_bar
-
-                hk = h0 + (self.ply_thickness * ply_num)
-                h1 = h0 + (self.ply_thickness * (ply_num - 1))
-
-                A += q_bar * (hk - h1)
-                B += 0.5 * q_bar * ((hk ** 2) - (h1 ** 2))
-                D += (1 / 3) * q_bar * ((hk ** 3) - (h1 ** 3))
-
-        else:
-            for ply_num, angle in enumerate(self.layup, start=1):
-                ply = Ply(angle, ply_num, self.ply_material_parameters[ply_num - 1])
-                q_bar = ply.q_bar
-
-                hk = h0 + (self.ply_thickness * ply_num)
-                h1 = h0 + (self.ply_thickness * (ply_num - 1))
-
-                A += q_bar * (hk - h1)
-                B += 0.5 * q_bar * ((hk ** 2) - (h1 ** 2))
-                D += (1 / 3) * q_bar * ((hk ** 3) - (h1 ** 3))
+            A += q_bar * (hk - h1)
+            B += 0.5 * q_bar * ((hk ** 2) - (h1 ** 2))
+            D += (1 / 3) * q_bar * ((hk ** 3) - (h1 ** 3))
 
         # TODO: Changed to round to zero
         self.abd_matrix = np.rint(np.block([[A, B], [B, D]])) * self.unit_correction
@@ -183,15 +157,6 @@ class Laminate:
 
         return plies
 
-    # Updates E2 of given ply in laminate and updates laminate ply list
-    def update(self, ply_num, angle, material_parameters):
-        ply_material_parameters = material_parameters
-        ply_material_parameters[2] = ply_material_parameters[2] * 0.75
-        print(f'Ply material params: {ply_material_parameters}')
-        print(f'Lam material params: {material_parameters}')
-        ply = Ply(angle, ply_num, ply_material_parameters)
-        self.laminate[ply_num] = ply
-
     # Returns z distance from midplane for given ply
     def get_z_distance(self, ply_num, side):
         z_distance = (self.z_zero + (ply_num * self.ply_thickness)) + (self.ply_thickness / 2)
@@ -207,7 +172,7 @@ class Laminate:
 
     # Returns local stress and strain vector at desired ply
     def global_stress_strain(self, angle, ply_num, side, print_enabled=False):
-        ply = Ply(angle, ply_num, self.laminate_material_parameters)
+        ply = Ply(angle, ply_num, self.ply_material_parameters[ply_num])
 
         midplane_strain_vector = np.array(self.midplane_strain_curvature_vector[:3], dtype=np.float64)
         midplane_curvature_vector = np.array(self.midplane_strain_curvature_vector[3:], dtype=np.float64)
@@ -227,7 +192,7 @@ class Laminate:
 
     # Finds local stress and strain at point in ply
     def local_stress_strain(self, angle, ply_num, side, print_enabled=False):
-        ply = Ply(angle, ply_num, self.laminate_material_parameters)
+        ply = Ply(angle, ply_num, self.ply_material_parameters[ply_num])
 
         z_distance = self.get_z_distance(ply_num, side)
 
@@ -334,7 +299,7 @@ class Laminate:
         global_thermal_moment_vector = 0
 
         for ply_num, angle in enumerate(self.layup, start=1):
-            ply = Ply(angle, ply_num, self.laminate_material_parameters)
+            ply = Ply(angle, ply_num, self.ply_material_parameters[ply_num])
 
             # Z values for iteration through laminate
             hk = h0 + (self.ply_thickness * ply_num)
@@ -364,7 +329,7 @@ class Laminate:
     # Finds the global and local thermal stress at specified side of laminate
     def thermal_stress(self, ply_num, side, print_enabled=False):
         angle = self.layup[ply_num]
-        ply = Ply(angle, ply_num, self.laminate_material_parameters)
+        ply = Ply(angle, ply_num, self.ply_material_parameters[ply_num])
 
         global_midplane_thermal_deformation_vector = self.thermal_strain()
 
@@ -372,8 +337,6 @@ class Laminate:
 
         global_point_thermal_strain = (global_midplane_thermal_deformation_vector[:3] +
                                        z_distance * global_midplane_thermal_deformation_vector[3:])
-
-        angle = self.layup[ply_num]
 
         plain_thermal_strain = ply.a_vect * self.delta_t
         plain_moment_thermal_strain = global_point_thermal_strain - plain_thermal_strain
@@ -400,7 +363,7 @@ class Laminate:
 
     # Returns tsai_wu criterion and factor of safety for a given ply
     def tsai_wu(self, ply_num, angle, print_enabled=False):
-        ply = Ply(angle, ply_num, self.laminate_material_parameters)
+        ply = Ply(angle, ply_num, self.ply_material_parameters[ply_num])
 
         f1 = (1 / ply.s1T) + (1 / ply.s1C)
         f11 = -1 / (ply.s1T * ply.s1C)
@@ -440,8 +403,7 @@ class Laminate:
         for ply in failed_plies:
             ply_objects = self.laminate
             ply_objects[ply].E2 = ply_objects[ply].E2 * 0.75
-            # print(laminate.laminate[0].E2)
-            # print(ply_objects[ply].E2)
+
 
     # Determines plies of failure
     def check_ply_failure(self, print_enabled=False):
@@ -492,16 +454,6 @@ class Laminate:
                 break
 
         return fiber_failure
-
-
-    # # Returns tsai-wu criterion by ply
-    # def ply_tsai_wu(self, print_enabled=False):
-    #     for ply_num, angle in enumerate(self.layup):
-    #         tsai_wu, fos = self.tsai_wu(angle, ply_num)
-    #
-    #         if print_enabled:
-    #             print(f'Factor of safety: {fos}, Ply: {ply_num}, Angle: {angle}')
-    #             print(f'Tsai-Wu criterion: {tsai_wu}, Ply: {ply_num}, Angle: {angle} \n')
 
 
 """
@@ -597,7 +549,6 @@ INPUTS
 ########################################################################################################################
 """
 
-test_material_parameters = [Vf, E1, E2, v12, G12, s1T, s1C, s2T, s2C, t12, a1, a2, a12]
 
 test_load = np.array([[0], [0], [0], [0], [0], [0]], dtype=np.float64)
 test_delta_t = 0
@@ -605,7 +556,16 @@ test_delta_t = 0
 test_layup = [90, 45, -45, 0, 60, -60, -60, 60, 0, -45, 45, 90]
 test_thickness = 0.00015
 
-test_laminate = Laminate(test_layup, test_material_parameters, test_thickness, test_delta_t, test_load)
+test_material_parameters = [Vf, E1, E2, v12, G12, s1T, s1C, s2T, s2C, t12, a1, a2, a12]
+
+# Fills in default list of material parameters per ply
+test_ply_parameters = []
+for ply_num, angle in enumerate(test_layup):
+    test_ply_parameters.append(test_material_parameters.copy())
+
+# Initializes test laminate object
+test_laminate = Laminate(test_layup, test_material_parameters, test_ply_parameters,
+                         test_thickness, test_delta_t, test_load)
 
 """
 ########################################################################################################################
@@ -750,37 +710,31 @@ def check_fiber_failure(laminate):
 #     return laminate
 #
 #
-# # The purpose of this funciton is to test the iteration of updates within a laminate object
-# def update_laminate(laminate, failed_plies):
-#     for ply in failed_plies:
-#         ply_objects = laminate.laminate
-#         ply_objects[ply].E2 = ply_objects[ply].E2 * 0.75
-#         # print(laminate.laminate[0].E2)
-#         # print(ply_objects[ply].E2)
+# The purpose of this funciton is to test the iteration of updates within a laminate object
+# def update_laminate(laminate):
+#     layup = laminate.layup
 #
-#     return laminate
 #
+#     return new_laminate
+
 
 # Applies progressive failure theory to laminate
 def progressive_failure(laminate, load_increase, *loads_to_change):
     fiber_failure = False
-    iterations = 0
     while not fiber_failure:
         failed_plies = []
         while len(failed_plies) == 0:
-            print('Trying...')
             failed_plies = laminate.check_ply_failure(print_enabled=False)
+            ply_material_params = laminate.get_ply_material_params()
             laminate = increase_load(laminate, load_increase, loads_to_change)
-            laminate.__init__(laminate.layup, laminate.laminate_material_parameters, laminate.ply_thickness,
-                              laminate.delta_t, laminate.load)
+            laminate.__init__(laminate.layup, laminate.laminate_material_parameters,
+                              ply_material_params, laminate.ply_thickness,laminate.delta_t, laminate.load)
             print(laminate.load)
 
-            iterations += 1
         laminate.update_laminate(failed_plies)
         fiber_failure = laminate.check_fiber_failure()
 
-    # print(laminate.load)
-    # print(f'Iterations: {iterations}')
+    print(laminate.load)
 
 progressive_failure(test_laminate, 100000, [0, 1])
 
