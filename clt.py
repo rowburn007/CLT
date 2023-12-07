@@ -437,7 +437,7 @@ class Laminate:
                 F2 = ply.s2C
 
             fiber_failure = ((s2 / F2) ** 2) + ((t6 / F6) ** 2) < ((s1 / F1) ** 2)
-            # print(f'{((s2 / F2) ** 2) + ((t6 / F6) ** 2)} < {((s1 / F1) ** 2)}')
+            print(f'{((s2 / F2) ** 2) + ((t6 / F6) ** 2)} < {((s1 / F1) ** 2)}')
 
             if fiber_failure:
                 break
@@ -452,11 +452,6 @@ class Laminate:
             tsai_wu_criterion, factor_of_safety = self.tsai_wu(ply_num, angle, print_enabled)
             if tsai_wu_criterion >= 1:
                 failed_plies.append(ply_num)
-                print(f'Tsai Wui: \n {tsai_wu_criterion}')
-                fiber_failure = self.check_fiber_failure()
-                if fiber_failure:
-                    print('FIBER FAILURE')
-                    break
 
             if print_enabled:
                 print(f'Failed Plies; \n {failed_plies} \n')
@@ -655,7 +650,7 @@ def progressive_failure(laminate, load_increase, *loads_to_change):
     while not fiber_failure:
         failed_plies = []
         while len(failed_plies) == 0:
-            failed_plies = laminate.check_ply_failure(print_enabled=False)
+            failed_plies = laminate.check_ply_failure(print_enabled=True)
             laminate = increase_load(laminate, load_increase, loads_to_change)
             laminate.__init__(laminate.layup, laminate.laminate_material_parameters,
                               initial_ply_material_parameters, laminate.ply_thickness, laminate.delta_t, laminate.load)
