@@ -405,32 +405,14 @@ class Laminate:
 
         return tsai_wu_criterion, fos
 
-    # The purpose of this function is to test the iteration of updates within a laminate object
-    def update_laminate(self, failed_plies):
-        for ply in failed_plies:
-            ply_objects = self.plies
-            ply_objects[ply].E2 = ply_objects[ply].E2 * 0.75
-
-    # Determines plies of failure
-    def check_ply_failure(self, print_enabled=False):
-        failed_plies = []
-        # print(self.load)
-        for ply_num, angle in enumerate(self.layup):
-            tsai_wu_criterion, factor_of_safety = self.tsai_wu(ply_num, angle, print_enabled)
-            if tsai_wu_criterion >= 1:
-                failed_plies.append(ply_num)
-        return failed_plies
-
-    # Gets ply material params
-    def get_ply_material_params(self):
-        failed_plies = self.check_ply_failure()
-        self.update_laminate(failed_plies)
-        self.ply_material_parameters = []
-        for ply in self.plies:
-            ply_material_properties = [ply.Vf, ply.E1, ply.E2, ply.v12, ply.G12, ply.s1T, ply.s1C,
-                                       ply.s2T, ply.s2C, ply.t12, ply.a1, ply.a2, ply.a12]
-            self.ply_material_parameters.append(ply_material_properties)
-        return self.ply_material_parameters
+    # # The purpose of this function is to test the iteration of updates within a laminate object
+    # def update_laminate(self, failed_plies):
+    #     # new_ply_material_parameters = self.ply_material_parameters.copy
+    #     # for ply in failed_plies:
+    #     #     ply_params = new_ply_material_parameters[ply]
+    #     #     ply_params[2] = ply_params[2] * 0.75
+    #     #
+    #     # return new_ply_material_parameters
 
     # Checks for fiber failure in laminate
     def check_fiber_failure(self):
@@ -455,11 +437,41 @@ class Laminate:
                 F2 = ply.s2C
 
             fiber_failure = ((s2 / F2) ** 2) + ((t6 / F6) ** 2) < ((s1 / F1) ** 2)
+            # print(f'{((s2 / F2) ** 2) + ((t6 / F6) ** 2)} < {((s1 / F1) ** 2)}')
 
             if fiber_failure:
                 break
 
         return fiber_failure
+
+    # Determines plies of failure
+    def check_ply_failure(self, print_enabled=False):
+        failed_plies = []
+        # print(self.load)
+        for ply_num, angle in enumerate(self.layup):
+            tsai_wu_criterion, factor_of_safety = self.tsai_wu(ply_num, angle, print_enabled)
+            if tsai_wu_criterion >= 1:
+                failed_plies.append(ply_num)
+                print(f'Tsai Wui: \n {tsai_wu_criterion}')
+                fiber_failure = self.check_fiber_failure()
+                if fiber_failure:
+                    print('FIBER FAILURE')
+                    break
+
+            if print_enabled:
+                print(f'Failed Plies; \n {failed_plies} \n')
+        return failed_plies
+
+    # # Gets ply material params
+    # def get_ply_material_params(self):
+    #     # failed_plies = self.check_ply_failure()
+    #     # new_ply_material_parameters = self.update_laminate(failed_plies)
+    #     # self.ply_material_parameters = []
+    #     # for ply in self.plies:
+    #     #     ply_material_properties = [ply.Vf, ply.E1, ply.E2, ply.v12, ply.G12, ply.s1T, ply.s1C,
+    #     #                                ply.s2T, ply.s2C, ply.t12, ply.a1, ply.a2, ply.a12]
+    #     #     self.ply_material_parameters.append(ply_material_properties)
+    #     # return self.ply_material_parameters
 
 
 """
@@ -623,20 +635,33 @@ def check_matrix_failure(laminate):
     return matrix_failure
 
 
+# Should make a new laminate instance with updated ply material parameters
+def update_ply_material_params(laminate):
+    failed_plies = laminate.check_ply_failure()
+    new_ply_material_parameters = laminate.ply_material_parameters.copy()
+
+    for ply in failed_plies:
+        ply_params = new_ply_material_parameters[ply]
+        ply_params[2] = ply_params[2] * 0.75
+        new_ply_material_parameters[ply] = ply_params
+
+    return new_ply_material_parameters
+
+
 # Runs progressive failure analysis
 def progressive_failure(laminate, load_increase, *loads_to_change):
     fiber_failure = False
+    initial_ply_material_parameters = laminate.ply_material_parameters
     while not fiber_failure:
         failed_plies = []
         while len(failed_plies) == 0:
             failed_plies = laminate.check_ply_failure(print_enabled=False)
-            ply_material_params = laminate.get_ply_material_params()
             laminate = increase_load(laminate, load_increase, loads_to_change)
             laminate.__init__(laminate.layup, laminate.laminate_material_parameters,
-                              ply_material_params, laminate.ply_thickness, laminate.delta_t, laminate.load)
-            print(laminate.load)
+                              initial_ply_material_parameters, laminate.ply_thickness, laminate.delta_t, laminate.load)
 
-        laminate.update_laminate(failed_plies)
+        print(f'Matrix failure: \n {laminate.load} \n')
+        initial_ply_material_parameters = update_ply_material_params(laminate)
         fiber_failure = laminate.check_fiber_failure()
 
     print(laminate.load)
@@ -649,4 +674,5 @@ CALLS
 """
 
 laminate_to_study = build_test_laminate()
-progressive_failure(laminate_to_study, 100000, [0, 1])
+progressive_failure(laminate_to_study, 10000, [0, 1])
+# print(laminate_to_study.check_ply_failure(print_enabled=True))
