@@ -638,6 +638,7 @@ def progressive_failure(laminate, load_increase, *loads_to_change, print_enabled
                               initial_ply_material_parameters, laminate.ply_thickness, laminate.delta_t, laminate.load)
 
         print(f'Matrix failure: \n {laminate.load} \n')
+        print(f'Pressure: \n {laminate.load / 0.15} \n')
         initial_ply_material_parameters = update_ply_material_params(laminate)
         fiber_failure = laminate.check_fiber_failure()
 
@@ -651,5 +652,5 @@ CALLS
 """
 
 laminate_to_study = build_test_laminate()
-progressive_failure(laminate_to_study, 1000, [0, 1], print_enabled=False)
+progressive_failure(laminate_to_study, 10000, [0, 1], print_enabled=False)
 print(laminate_to_study.load[0][0] / 0.15)
