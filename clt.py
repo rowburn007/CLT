@@ -405,15 +405,6 @@ class Laminate:
 
         return tsai_wu_criterion, fos
 
-    # # The purpose of this function is to test the iteration of updates within a laminate object
-    # def update_laminate(self, failed_plies):
-    #     # new_ply_material_parameters = self.ply_material_parameters.copy
-    #     # for ply in failed_plies:
-    #     #     ply_params = new_ply_material_parameters[ply]
-    #     #     ply_params[2] = ply_params[2] * 0.75
-    #     #
-    #     # return new_ply_material_parameters
-
     # Checks for fiber failure in laminate
     def check_fiber_failure(self):
         fiber_failure = False
@@ -437,7 +428,7 @@ class Laminate:
                 F2 = ply.s2C
 
             fiber_failure = ((s2 / F2) ** 2) + ((t6 / F6) ** 2) < ((s1 / F1) ** 2)
-            print(f'{((s2 / F2) ** 2) + ((t6 / F6) ** 2)} < {((s1 / F1) ** 2)}')
+            # print(f'{((s2 / F2) ** 2) + ((t6 / F6) ** 2)} < {((s1 / F1) ** 2)}')
 
             if fiber_failure:
                 break
@@ -456,17 +447,6 @@ class Laminate:
             if print_enabled:
                 print(f'Failed Plies; \n {failed_plies} \n')
         return failed_plies
-
-    # # Gets ply material params
-    # def get_ply_material_params(self):
-    #     # failed_plies = self.check_ply_failure()
-    #     # new_ply_material_parameters = self.update_laminate(failed_plies)
-    #     # self.ply_material_parameters = []
-    #     # for ply in self.plies:
-    #     #     ply_material_properties = [ply.Vf, ply.E1, ply.E2, ply.v12, ply.G12, ply.s1T, ply.s1C,
-    #     #                                ply.s2T, ply.s2C, ply.t12, ply.a1, ply.a2, ply.a12]
-    #     #     self.ply_material_parameters.append(ply_material_properties)
-    #     # return self.ply_material_parameters
 
 
 """
@@ -593,9 +573,11 @@ FUNCTIONS
 
 # Increases load on laminate
 def increase_load(laminate, load_increase, *loads_to_change):
-    for load in loads_to_change:
-        applied_load = laminate.load[load]
-        laminate.load[load] = applied_load + load_increase
+    for load in loads_to_change[0][0]:
+        if load == 1:
+            laminate.load[load] = (load_increase * 0.5) + laminate.load[load]
+        else:
+            laminate.load[load] = load_increase + laminate.load[load]
 
     return laminate
 
@@ -644,13 +626,13 @@ def update_ply_material_params(laminate):
 
 
 # Runs progressive failure analysis
-def progressive_failure(laminate, load_increase, *loads_to_change):
+def progressive_failure(laminate, load_increase, *loads_to_change, print_enabled):
     fiber_failure = False
     initial_ply_material_parameters = laminate.ply_material_parameters
     while not fiber_failure:
         failed_plies = []
         while len(failed_plies) == 0:
-            failed_plies = laminate.check_ply_failure(print_enabled=True)
+            failed_plies = laminate.check_ply_failure(print_enabled)
             laminate = increase_load(laminate, load_increase, loads_to_change)
             laminate.__init__(laminate.layup, laminate.laminate_material_parameters,
                               initial_ply_material_parameters, laminate.ply_thickness, laminate.delta_t, laminate.load)
@@ -669,5 +651,5 @@ CALLS
 """
 
 laminate_to_study = build_test_laminate()
-progressive_failure(laminate_to_study, 10000, [0, 1])
-# print(laminate_to_study.check_ply_failure(print_enabled=True))
+progressive_failure(laminate_to_study, 1000, [0, 1], print_enabled=False)
+print(laminate_to_study.load[0][0] / 0.15)
