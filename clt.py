@@ -576,7 +576,7 @@ def increase_load(laminate, load_increase, *loads_to_change):
     for load in loads_to_change[0][0]:
         laminate.load[load] = load_increase + laminate.load[load]
 
-    laminate.load[0] = laminate.load[1] * 0.5
+    laminate.load[0] = laminate.load[0] * 0.5
 
     return laminate
 
@@ -639,14 +639,18 @@ def progressive_failure(laminate, load_increase, *loads_to_change, print_enabled
             laminate.__init__(laminate.layup, laminate.laminate_material_parameters,
                               initial_ply_material_parameters, laminate.ply_thickness, laminate.delta_t, laminate.load)
 
-        print(f'Matrix failure load: \n {laminate.load} \n')
-        print(f'Pressure: \n {laminate.load[1][0] / 0.15} Pa \n')
-        print(f'ABD: \n {laminate.abd_matrix} \n')
-        initial_ply_material_parameters = update_ply_material_params(laminate)
         fiber_failure = laminate.check_fiber_failure()
+        if fiber_failure:
+            break
+        print(f'ABD: \n {laminate.abd_matrix} \n')
+        print(f'Pressure: \n {laminate.load[1][0] / 0.15} Pa \n')
+        print(f'Matrix failure load: \n {laminate.load} \n')
+        print(f'Failed plies: {failed_plies}')
+        initial_ply_material_parameters = update_ply_material_params(laminate)
 
     print(f'Fiber failure load: \n {laminate.load} \n')
-
+    print(f'Pressure: \n {laminate.load[1][0] / 0.15} Pa \n')
+    print(f'ABD: \n {laminate.abd_matrix} \n')
 
 """
 ########################################################################################################################
@@ -655,5 +659,4 @@ CALLS
 """
 
 laminate_to_study = build_test_laminate()
-progressive_failure(laminate_to_study, 10000, [0, 1], print_enabled=True)
-print(laminate_to_study.load[1][0] / 0.15)
+progressive_failure(laminate_to_study, 10000, [0, 1], print_enabled=False)
