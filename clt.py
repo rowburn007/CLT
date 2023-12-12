@@ -178,7 +178,16 @@ class Laminate:
 
         global_point_strain_vector = midplane_strain_vector + z_distance * midplane_curvature_vector
         global_point_stress_vector = np.dot(q_bar_at_ply, global_point_strain_vector)
+
+        # Combining global thermal and mechanical stress strain
+        (local_point_thermal_stress_vector, global_point_thermal_stress_vector,
+         local_point_thermal_strain_vector, global_point_thermal_strain_vector) = self.thermal_stress(ply_num, side)
+
+        global_point_strain_vector = global_point_strain_vector + global_point_thermal_strain_vector
+        global_point_stress_vector = global_point_stress_vector + global_point_thermal_stress_vector
+
         global_point_stress_strain_vector = np.vstack([global_point_stress_vector, global_point_strain_vector])
+        print(global_point_stress_strain_vector)
 
         if print_enabled:
             print(f'Global strain at Ply: {ply_num}, '
@@ -214,6 +223,16 @@ class Laminate:
 
         local_point_strain_vector = local_midplane_strain_vector + (z_distance * local_midplane_curvature_vector)
         local_point_stress_vector = np.dot(ply.q_matrix, local_point_strain_vector)
+
+
+        # Combining thermal and mechanical stress
+        (local_point_thermal_stress_vector, global_point_thermal_stress_vector,
+         local_point_thermal_strain_vector, global_point_thermal_strain_vector) = self.thermal_stress(ply_num, side)
+
+        local_point_stress_vector = local_point_stress_vector + local_point_thermal_stress_vector
+        local_point_strain_vector = local_midplane_strain_vector + local_point_thermal_strain_vector
+
+        # Combined local stress strain
         local_point_stress_strain_vector = np.vstack([local_point_stress_vector, local_point_strain_vector])
 
         if print_enabled:
@@ -302,7 +321,7 @@ class Laminate:
         global_thermal_force_vector = 0
         global_thermal_moment_vector = 0
 
-        for ply_num, angle in enumerate(self.layup, start=1):
+        for ply_num, angle in enumerate(self.layup, start=0):
             ply = Ply(angle, ply_num, self.ply_material_parameters[ply_num])
 
             # Z values for iteration through laminate
@@ -347,6 +366,7 @@ class Laminate:
 
         global_point_thermal_stress = np.linalg.multi_dot([ply.q_bar, plain_moment_thermal_strain])
 
+
         # Transformation matrices
         angle = np.deg2rad(angle)
         c = np.cos(angle)
@@ -357,13 +377,20 @@ class Laminate:
 
         R = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 2]], dtype=np.float64)
         Rinv = np.linalg.inv(R)
+
+        # COnverting to local thermal stress and strain
         local_point_thermal_stress = np.linalg.multi_dot([R, T, Rinv, global_point_thermal_stress])
+        local_point_thermal_strain = np.linalg.multi_dot([R, T, Rinv, global_point_thermal_strain])
 
         if print_enabled:
             print(f'Local thermal stress ply: {ply_num}, '
                   f'angle: {angle}, side: {side} \n {local_point_thermal_stress} \n')
             print(f'Global thermal stress ply: {ply_num}, '
                   f'angle: {angle}, side: {side} \n {global_point_thermal_stress} \n')
+
+        return (local_point_thermal_stress, global_point_thermal_stress,
+                local_point_thermal_strain, global_point_thermal_strain)
+
 
     # Returns tsai_wu criterion and factor of safety for a given ply
     def tsai_wu(self, ply_num, angle, print_enabled=False):
@@ -542,6 +569,11 @@ INPUTS
 ########################################################################################################################
 """
 
+# diameter = 0.84
+# pressure = 9000000
+# Nx = 0.5 (pressure / (diameter / 2
+# Ny = pressure * (diameter / 2)
+
 
 def build_test_laminate():
     test_load = np.array([[0], [0], [0], [0], [0], [0]], dtype=np.float64)
@@ -643,7 +675,7 @@ def progressive_failure(laminate, load_increase, *loads_to_change, print_enabled
         if fiber_failure:
             break
         print(f'=====================================================================')
-        print(f'Pressure: \n {laminate.load[1][0] / 0.15} Pa \n')
+        print(f'Pressure: \n {laminate.load[1][0] / (diameter / 2)} Pa \n')
         print(f'Matrix failure load: \n {laminate.load} \n')
         print(f'Failed plies: {failed_plies}')
         print(f'ABD: \n {laminate.abd_matrix} \n')
@@ -651,8 +683,11 @@ def progressive_failure(laminate, load_increase, *loads_to_change, print_enabled
         initial_ply_material_parameters = update_ply_material_params(laminate)
 
     print(f'Fiber failure load: \n {laminate.load} \n')
-    print(f'Pressure: \n {laminate.load[1][0] / 0.15} Pa \n')
+    print(f'Pressure: \n {laminate.load[1][0] / (diameter / 2)} Pa \n')
     print(f'ABD: \n {laminate.abd_matrix} \n')
+
+# Pressure vessel calcualtion
+# def calculate_pressure_vessel()
 
 """
 ########################################################################################################################
@@ -661,4 +696,5 @@ CALLS
 """
 
 laminate_to_study = build_test_laminate()
-progressive_failure(laminate_to_study, 5000, [0, 1], print_enabled=False)
+laminate_to_study.global_stress_strain(90, 0, 'top')
+# progressive_failure(laminate_to_study, 5000, [0, 1], print_enabled=False)
