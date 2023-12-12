@@ -444,8 +444,8 @@ class Laminate:
             if tsai_wu_criterion >= 1:
                 failed_plies.append(ply_num)
 
-            if print_enabled:
-                print(f'Failed Plies; \n {failed_plies} \n')
+        if print_enabled:
+            print(f'Failed Plies; \n {failed_plies} \n')
         return failed_plies
 
 
@@ -574,10 +574,9 @@ FUNCTIONS
 # Increases load on laminate
 def increase_load(laminate, load_increase, *loads_to_change):
     for load in loads_to_change[0][0]:
-        if load == 1:
-            laminate.load[load] = (load_increase * 0.5) + laminate.load[load]
-        else:
-            laminate.load[load] = load_increase + laminate.load[load]
+        laminate.load[load] = load_increase + laminate.load[load]
+
+    laminate.load[0] = laminate.load[1] * 0.5
 
     return laminate
 
@@ -594,6 +593,7 @@ def check_matrix_failure(laminate):
         t6 = ply.t12
         F6 = t6
 
+        # Sign check for strength coefficient
         if s1 > 0:
             F1 = ply.s1T
         else:
@@ -617,9 +617,11 @@ def update_ply_material_params(laminate):
     failed_plies = laminate.check_ply_failure()
     new_ply_material_parameters = laminate.ply_material_parameters.copy()
 
+    # Updates E2 and G12 for failes plies
     for ply in failed_plies:
         ply_params = new_ply_material_parameters[ply]
-        ply_params[2] = ply_params[2] * 0.75
+        ply_params[2] = ply_params[2] * 0.25
+        ply_params[4] = ply_params[4] * 0.25
         new_ply_material_parameters[ply] = ply_params
 
     return new_ply_material_parameters
@@ -637,12 +639,13 @@ def progressive_failure(laminate, load_increase, *loads_to_change, print_enabled
             laminate.__init__(laminate.layup, laminate.laminate_material_parameters,
                               initial_ply_material_parameters, laminate.ply_thickness, laminate.delta_t, laminate.load)
 
-        print(f'Matrix failure: \n {laminate.load} \n')
-        print(f'Pressure: \n {laminate.load / 0.15} \n')
+        print(f'Matrix failure load: \n {laminate.load} \n')
+        print(f'Pressure: \n {laminate.load[1][0] / 0.15} Pa \n')
+        print(f'ABD: \n {laminate.abd_matrix} \n')
         initial_ply_material_parameters = update_ply_material_params(laminate)
         fiber_failure = laminate.check_fiber_failure()
 
-    print(laminate.load)
+    print(f'Fiber failure load: \n {laminate.load} \n')
 
 
 """
@@ -652,5 +655,5 @@ CALLS
 """
 
 laminate_to_study = build_test_laminate()
-progressive_failure(laminate_to_study, 10000, [0, 1], print_enabled=False)
-print(laminate_to_study.load[0][0] / 0.15)
+progressive_failure(laminate_to_study, 10000, [0, 1], print_enabled=True)
+print(laminate_to_study.load[1][0] / 0.15)
