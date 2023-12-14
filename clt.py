@@ -1,4 +1,5 @@
 import numpy as np
+from random import randint
 
 # Numpy print settings
 np.set_printoptions(precision=3)
@@ -187,7 +188,6 @@ class Laminate:
         global_point_stress_vector = global_point_stress_vector + global_point_thermal_stress_vector
 
         global_point_stress_strain_vector = np.vstack([global_point_stress_vector, global_point_strain_vector])
-        print(global_point_stress_strain_vector)
 
         if print_enabled:
             print(f'Global strain at Ply: {ply_num}, '
@@ -223,7 +223,6 @@ class Laminate:
 
         local_point_strain_vector = local_midplane_strain_vector + (z_distance * local_midplane_curvature_vector)
         local_point_stress_vector = np.dot(ply.q_matrix, local_point_strain_vector)
-
 
         # Combining thermal and mechanical stress
         (local_point_thermal_stress_vector, global_point_thermal_stress_vector,
@@ -366,7 +365,6 @@ class Laminate:
 
         global_point_thermal_stress = np.linalg.multi_dot([ply.q_bar, plain_moment_thermal_strain])
 
-
         # Transformation matrices
         angle = np.deg2rad(angle)
         c = np.cos(angle)
@@ -390,7 +388,6 @@ class Laminate:
 
         return (local_point_thermal_stress, global_point_thermal_stress,
                 local_point_thermal_strain, global_point_thermal_strain)
-
 
     # Returns tsai_wu criterion and factor of safety for a given ply
     def tsai_wu(self, ply_num, angle, print_enabled=False):
@@ -503,25 +500,31 @@ MATERIAL
 # a2 = 0.0000225
 # a12 = 0
 
-# CFP meters
-# Material parameters
-Vf = 0.7
-E1 = 181 * 10 ** 9
-E2 = 10.30 * 10 ** 9
-v12 = 0.28
-G12 = 7.17 * 10 ** 9
-
-# Strength properties
-s1T = 1500 * 10 ** 6
-s1C = -1500 * 10 ** 6
-s2T = 40 * 10 ** 6
-s2C = -246 * 10 ** 6
-t12 = 68 * 10 ** 6
-
-# Thermal coefficients
-a1 = 0.00000002
-a2 = 0.0000225
-a12 = 0
+# # CFP meters
+# # Material parameters
+# Vf = 0.7
+# E1 = 181 * 10 ** 9
+# E2 = 10.30 * 10 ** 9
+# v12 = 0.28
+# G12 = 7.17 * 10 ** 9
+#
+# # Strength properties
+# s1T = 1500 * 10 ** 6
+# s1C = -1500 * 10 ** 6
+# s2T = 40 * 10 ** 6
+# s2C = -246 * 10 ** 6
+# t12 = 68 * 10 ** 6
+#
+# # Thermal coefficients
+# a1 = 0.00000002
+# a2 = 0.0000225
+# a12 = 0
+#
+# # Material Density
+# density = 2300  # kg/m3
+#
+# # Material Cost
+# cost = 10  # $/kg
 
 # # Tsai Wu Pa
 # # Material parameters
@@ -563,24 +566,114 @@ a12 = 0
 # a2 = 0.0000225
 # a12 = 0
 
+
+# Glass epoxy m
+# Material parameters
+Vf = 0.45
+E1 = 38.6 * 10 ** 9
+E2 = 8.27 * 10 ** 9
+v12 = 0.26
+G12 = 4.14 * 10 ** 9
+
+# Strength properties
+s1T = 1062 * 10 ** 6
+s1C = 610 * 10 ** 6
+s2T = 31 * 10 ** 6
+s2C = -118 * 10 ** 6
+t12 = 72 * 10 ** 6
+
+# Thermal coefficients
+a1 = 0.0000082
+a2 = 0.0000221
+a12 = 0
+
+# Material Density
+density = 4100  # kg/m3
+
+# Material Cost
+cost = 2.5  # $/kg
+
 """
 ########################################################################################################################
 INPUTS
 ########################################################################################################################
 """
 
-# diameter = 0.84
-# pressure = 9000000
-# Nx = 0.5 (pressure / (diameter / 2
-# Ny = pressure * (diameter / 2)
+length = 1.87
+diameter = 0.84
+test_pressure = 9000000
+Nx = 0.5 * (test_pressure / (diameter / 2))
+Ny = test_pressure * (diameter / 2)
 
 
 def build_test_laminate():
-    test_load = np.array([[0], [0], [0], [0], [0], [0]], dtype=np.float64)
-    test_delta_t = 0
+    test_load = np.array([[Nx], [Ny], [0], [0], [0], [0]], dtype=np.float64)
+    test_delta_t = -56.85
 
-    test_layup = [90, 45, -45, 0, 60, -60, -60, 60, 0, -45, 45, 90]
-    test_thickness = 0.00015
+    test_layup = [
+        45, -45,
+        0, 0, 90, 90, 0, 0, 90, 90,
+        45, -45, 0, 0, 0, 0, 90, 90, 0, 0, 0, 0, 90, 90, 0, 0, 90, 90,
+        45, -45, 0, 0, 0, 0, 90, 90, 0, 0, 0, 0, 90, 90, 0, 0, 90, 90,
+        45, -45, 0, 0, 0, 0, 90, 90, 0, 0, 0, 0, 90, 90, 0, 0, 90, 90,
+        45, -45, 0, 0, 0, 0, 90, 90, 0, 0, 0, 0, 90, 90, 0, 0, 90, 90,
+        45, -45, 0, 0, 0, 0, 90, 90, 0, 0, 0, 0, 90, 90, 0, 0, 90, 90,
+        45, -45, 0, 0, 0, 0, 90, 90, 0, 0, 0, 0, 90, 90, 0, 0, 90, 90,
+        0, 0, 90, 90, 0, 0, 90, 90,
+        -45, 45
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, 0, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, -60, 60, -60, 60,
+        # 60, -60, 60, -60, 0, 0, 0, 60, 0, 60, 60, 0, 60, 0, 0, 0, 0, -60, 60,
+
+        # 45, -45, 45, -45, 0, 90,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0,
+        # 0, 90, -45, 45, -45, 45
+    ]
+
+    test_thickness = 0.00125
 
     test_material_parameters = [Vf, E1, E2, v12, G12, s1T, s1C, s2T, s2C, t12, a1, a2, a12]
 
@@ -686,8 +779,141 @@ def progressive_failure(laminate, load_increase, *loads_to_change, print_enabled
     print(f'Pressure: \n {laminate.load[1][0] / (diameter / 2)} Pa \n')
     print(f'ABD: \n {laminate.abd_matrix} \n')
 
+
+# Optimization
+def rosen_der(x):
+    xm = x[1:-1]
+    xm_m1 = x[:-2]
+    xm_p1 = x[2:]
+    der = np.zeros_like(x)
+    der[1:-1] = 200 * (xm - xm_m1 ** 2) - 400 * (xm_p1 - xm ** 2) * xm - 2 * (1 - xm)
+    der[0] = -400 * x[0] * (x[1] - x[0] ** 2) - 2 * (1 - x[0])
+    der[-1] = 200 * (x[-1] - x[-2] ** 2)
+    return der
+
+
+def mass(laminate):
+    M = density * laminate.ply_thickness * length * diameter * np.pi * len(laminate.layup)
+    return M
+
+
+def check_odd(n):
+    if n % 2 == 0:
+        return False
+    else:
+        return True
+
+
+def check_performance(laminate):
+    weakest_ply = 0
+    strongest_ply = 1
+    for ply_num, angle in enumerate(laminate.layup):
+        tsai_wu, fos = laminate.tsai_wu(ply_num, angle)
+        if tsai_wu > weakest_ply:
+            weakest_ply = ply_num
+
+        if tsai_wu < strongest_ply:
+            strongest_ply = ply_num
+
+    return weakest_ply, strongest_ply
+
+
+def average_tsai_wu(laminate):
+    tsai_wus = []
+
+    for ply_num, angle in enumerate(laminate.layup):
+        tsai_wu, fos = laminate.tsai_wu(ply_num, angle)
+        tsai_wus.append(tsai_wu)
+
+    avg_tsai_wu = np.average(tsai_wus)
+    return avg_tsai_wu
+
+
+def get_pairs(position):
+    # Gets ply pairs and their symmetric sister pair
+    if check_odd(position):
+        pair = position - 1, position
+    else:
+        pair = position, position + 1
+
+    return pair
+
+# Finds the best laminate and returns it
+def choose_best(laminate):
+    test_layup = laminate.layup.copy()
+    layup_pairs = [[0, 90], [45, -45], [60, -60]]
+    weakest_position, strongest_position = check_performance(laminate)
+    weakest_mirror_position = -weakest_position
+    strongest_mirror_position = -strongest_position
+
+    # Gets all index pairs for strongest and weakest
+    weakest_pair = get_pairs(weakest_position)
+    weakest_mirror_pair = get_pairs(weakest_mirror_position)
+
+    strongest_pair = get_pairs(strongest_position)
+    strongest_mirror_pair = get_pairs(strongest_mirror_position)
+
+    # Iterates through pairs, updating laminate object and checking performance
+    average_tsai_wus = []
+    for new_pair in layup_pairs:
+        avg_tsai_wu = average_tsai_wu(laminate)
+        average_tsai_wus.append(avg_tsai_wu)
+        test_layup[weakest_pair[0]] = new_pair[0]
+        test_layup[weakest_pair[1]] = new_pair[1]
+        laminate.layup = test_layup
+        laminate.__init__(laminate.layup, laminate.laminate_material_parameters,
+                          laminate.ply_material_parameters, laminate.ply_thickness, laminate.delta_t, laminate.load)
+
+    # Finds and sets laminate to optimal layup, updates laminate
+    best_performance = min(average_tsai_wus)
+    best_performance = average_tsai_wus.index(best_performance)
+    test_layup[weakest_pair[0]] = layup_pairs[best_performance][0]
+    test_layup[weakest_pair[1]] = layup_pairs[best_performance][1]
+    test_layup[weakest_mirror_pair[0]] = layup_pairs[best_performance][0]
+    test_layup[weakest_mirror_pair[1]] = layup_pairs[best_performance][1]
+    test_layup.pop(strongest_pair[0])
+    test_layup.pop(strongest_pair[1])
+    test_layup.pop(strongest_mirror_pair[0])
+    test_layup.pop(strongest_mirror_pair[1])
+
+    laminate.layup = test_layup
+    laminate.__init__(laminate.layup, laminate.laminate_material_parameters,
+                      laminate.ply_material_parameters, laminate.ply_thickness, laminate.delta_t, laminate.load)
+
+    return laminate
+
+
+
 # Pressure vessel calcualtion
-# def calculate_pressure_vessel()
+def calculate_pressure_vessel(laminate):
+    failure = laminate.check_ply_failure()
+    failure_pct = len(failure) / len(laminate.layup)
+    area_o = np.pi * ((0.5 * diameter) + laminate.laminate_thickness) ** 2
+    area_i = np.pi * (0.5 * diameter) ** 2
+    volume = (area_o - area_i) * length
+    mass = density * volume
+    total_cost = mass * cost
+    print(f'Failure: {failure}')
+    print(f'Failure %, {failure_pct * 100} %')
+    print(f'Volume m3: {volume}')
+    print(f'Number of plies: {len(laminate.layup)}')
+    print(f'Wall thickness: {laminate.laminate_thickness * 1000} mm')
+    print(f'Total mass: {mass} kg')
+    print(f'Total cost: $ {total_cost}')
+
+
+def test_vessesl(laminate):
+    failure = False
+    while not failure:
+        if len(laminate.check_ply_failure()) > 0:
+            failure = True
+            break
+        else:
+            pass
+
+        best = choose_best(laminate)
+        calculate_pressure_vessel(best)
+        print(f'Current Layup: \n {best.layup}')
 
 """
 ########################################################################################################################
@@ -696,5 +922,15 @@ CALLS
 """
 
 laminate_to_study = build_test_laminate()
-laminate_to_study.global_stress_strain(90, 0, 'top')
 # progressive_failure(laminate_to_study, 5000, [0, 1], print_enabled=False)
+# test = mass(laminate_to_study)
+calculate_pressure_vessel(laminate_to_study)
+stress_strain = laminate_to_study.local_stress_strain(45, 0, 'top')
+axial_elongation = stress_strain[3] * length
+diametral_elongation = stress_strain[4] * diameter * np.pi
+print(f'Axial elongation = {axial_elongation * 1000} mm')
+print(f'Diametral elongation = {diametral_elongation * 1000} mm')
+print(stress_strain)
+# best = choose_best(laminate_to_study)
+# calculate_pressure_vessel(best)
+# test_vessesl(laminate_to_study)
