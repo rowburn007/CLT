@@ -1,5 +1,6 @@
 import numpy as np
 from random import randint
+import matplotlib.pyplot as plt
 
 # Numpy print settings
 np.set_printoptions(precision=3)
@@ -580,12 +581,11 @@ Ny = test_pressure * (diameter / 2)
 
 
 def build_test_laminate():
-    test_load = np.array([[Nx], [Ny], [0], [0], [0], [0]], dtype=np.float64)
-    test_delta_t = -56.85
+    test_load = np.array([[0], [0], [0], [0], [0], [0]], dtype=np.float64)
+    test_delta_t = 0
 
     test_layup = [
-        45, 0, 90, 0, 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0, 0, 90, 0, 90, 45, -45, -45, 45, 90, 0, 90, 0, 0, 90,
-        0, 90, 45, -45, -45, 45, 90, 0, 60, -60
+        90, 45, 0
     ]
 
     test_thickness = 0.00125
@@ -834,10 +834,153 @@ CALLS
 ########################################################################################################################
 """
 
-laminate_to_study = build_test_laminate()
+a11s = []
+a12s = []
+a22s = []
+a16s = []
+a26s = []
+a66s = []
+
+b11s = []
+b12s = []
+b22s = []
+b16s = []
+b26s = []
+b66s = []
+
+d11s = []
+d12s = []
+d22s = []
+d16s = []
+d26s = []
+d66s = []
+
+a = []
+b = []
+d = []
+
+xs = []
+for x in range(100):
+    theta = x
+
+    test_load = np.array([[0], [0], [0], [0], [0], [0]], dtype=np.float64)
+    test_delta_t = 0
+
+    test_layup = [
+        theta
+    ]
+
+    test_thickness = 0.00125
+
+    test_material_parameters = [Vf, E1, E2, v12, G12, s1T, s1C, s2T, s2C, t12, a1, a2, a12]
+
+    # Fills in default list of material parameters per ply
+    test_ply_parameters = []
+    for ply_num, angle in enumerate(test_layup):
+        test_ply_parameters.append(test_material_parameters.copy())
+
+    # Initializes test laminate object
+    test_laminate = Laminate(test_layup, test_material_parameters, test_ply_parameters,
+                            test_thickness, test_delta_t, test_load)
+    abd = test_laminate.abd_matrix
+    a11 = abd[0][0]
+    a12 = abd[0][1]
+    a22 = abd[1][1]
+    a16 = abd[2][0]
+    a26 = abd[1][2]
+    a66 = abd[2][2]
+
+    a11s.append(a11)
+    a12s.append(a12)
+    a22s.append(a22)
+    a16s.append(a16)
+    a26s.append(a26)
+    a66s.append(a66)
+
+    b11 = abd[3][0]
+    b12 = abd[3][1]
+    b22 = abd[4][1]
+    b16 = abd[5][0]
+    b26 = abd[4][2]
+    b66 = abd[5][2]
+
+    b11s.append(b11)
+    b12s.append(b12)
+    b22s.append(b22)
+    b16s.append(b16)
+    b26s.append(b26)
+    b66s.append(b66)
+
+    d11 = abd[3][3]
+    d12 = abd[3][4]
+    d22 = abd[4][4]
+    d16 = abd[5][3]
+    d26 = abd[4][5]
+    d66 = abd[5][5]
+
+    d11s.append(d11)
+    d12s.append(d12)
+    d22s.append(d22)
+    d16s.append(d16)
+    d26s.append(d26)
+    d66s.append(d66)
+
+    xs.append(x)
+
+
+a.append(a11s)
+a.append(a12s)
+a.append(a22s)
+a.append(a16s)
+a.append(a26s)
+a.append(a66s)
+
+b.append(b11s)
+b.append(b12s)
+b.append(b22s)
+b.append(b16s)
+b.append(b26s)
+b.append(b66s)
+
+d.append(d11s)
+d.append(d12s)
+d.append(d22s)
+d.append(d16s)
+d.append(d26s)
+d.append(d66s)
+
+fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2,2, figsize=(8, 4))
+
+label_list = ['a11', 'a12', 'a22', 'a16', 'a26', 'a66']
+
+for i, e in enumerate(a):
+    ax1.plot(xs, e, '-', label=label_list[i])
+
+for i, e in enumerate(b):
+    ax2.plot(xs, e, '-', label=label_list[i])
+    ax3.plot(xs, e, '-', label=label_list[i])
+
+for i, e in enumerate(d):
+    ax4.plot(xs, e, '-', label=label_list[i])
+
+
+ax1.xaxis.set_ticks(np.arange(0, 91, 15))
+ax2.xaxis.set_ticks(np.arange(0, 91, 15))
+ax3.xaxis.set_ticks(np.arange(0, 91, 15))
+ax4.xaxis.set_ticks(np.arange(0, 91, 15))
+plt.legend()
+plt.show()
+
+
+
+
+
+
+
+
 # progressive_failure(laminate_to_study, 5000, [0, 1], print_enabled=False)
 # test = mass(laminate_to_study)
 # calculate_pressure_vessel(laminate_to_study)
 # best = choose_best(laminate_to_study)
 # calculate_pressure_vessel(best)
-test_vessesl(laminate_to_study)
+# test_vessesl(laminate_to_study)
