@@ -833,6 +833,12 @@ def test_vessesl(laminate):
 CALLS
 ########################################################################################################################
 """
+qb11s = []
+qb12s = []
+qb22s = []
+qb16s = []
+qb26s = []
+qb66s = []
 
 a11s = []
 a12s = []
@@ -859,9 +865,11 @@ a = []
 b = []
 d = []
 
+q_bar = []
+
 xs = []
 for x in range(100):
-    theta = x
+    theta = x**2
 
     test_load = np.array([[0], [0], [0], [0], [0], [0]], dtype=np.float64)
     test_delta_t = 0
@@ -883,6 +891,24 @@ for x in range(100):
     test_laminate = Laminate(test_layup, test_material_parameters, test_ply_parameters,
                             test_thickness, test_delta_t, test_load)
     abd = test_laminate.abd_matrix
+    
+    test_ply = Ply(theta, 0, test_material_parameters)
+    qb = test_ply.q_bar
+
+    qb11 = qb[0][0]
+    qb12 = qb[0][1]
+    qb22 = qb[1][1]
+    qb16 = qb[0][2]
+    qb26 = qb[1][2]
+    qb66 = qb[2][2]
+
+    qb11s.append(qb11)
+    qb12s.append(qb12)
+    qb22s.append(qb22)
+    qb16s.append(qb16)
+    qb26s.append(qb26)
+    qb66s.append(qb66)
+
     a11 = abd[0][0]
     a12 = abd[0][1]
     a22 = abd[1][1]
@@ -949,7 +975,15 @@ d.append(d16s)
 d.append(d26s)
 d.append(d66s)
 
+q_bar.append(qb11s)
+q_bar.append(qb12s)
+q_bar.append(qb22s)
+q_bar.append(qb16s)
+q_bar.append(qb26s)
+q_bar.append(qb66s)
+
 fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2,2, figsize=(8, 4))
+fig_2, ((ax_11, ax_12, ax_16), (ax_21, ax_22, ax_26), (ax_61, ax_62, ax_66)) = plt.subplots(3, 3, figsize=(8, 4))
 
 label_list = ['a11', 'a12', 'a22', 'a16', 'a26', 'a66']
 
@@ -962,6 +996,17 @@ for i, e in enumerate(b):
 
 for i, e in enumerate(d):
     ax4.plot(xs, e, '-', label=label_list[i])
+
+ax_11.plot(xs, q_bar[0], '-')
+ax_12.plot(xs, q_bar[1], 'r-')
+ax_21.plot(xs, q_bar[1], 'r-')
+ax_22.plot(xs, q_bar[2], 'y-')
+ax_16.plot(xs, q_bar[3], 'y-')
+ax_61.plot(xs, q_bar[3], 'y-')
+ax_26.plot(xs, q_bar[4], 'g-')
+ax_62.plot(xs, q_bar[4], 'g-')
+ax_66.plot(xs, q_bar[5], '-')
+
 
 
 ax1.xaxis.set_ticks(np.arange(0, 91, 15))
