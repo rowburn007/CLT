@@ -868,8 +868,9 @@ d = []
 q_bar = []
 
 xs = []
-for x in range(100):
-    theta = x**2
+for x in range(90):
+    # theta = np.rad2deg((x/100) * np.pi/2)
+    theta = 30 + x/100 * 75
 
     test_load = np.array([[0], [0], [0], [0], [0], [0]], dtype=np.float64)
     test_delta_t = 0
